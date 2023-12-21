@@ -1,9 +1,9 @@
-import { GeodataAdmin2Entity } from '@app/infra/entities/geodata-admin2.entity';
 import { ActivityEntity } from './activity.entity';
 import { AlbumEntity } from './album.entity';
 import { APIKeyEntity } from './api-key.entity';
 import { AssetFaceEntity } from './asset-face.entity';
 import { AssetJobStatusEntity } from './asset-job-status.entity';
+import { AssetStackEntity } from './asset-stack.entity';
 import { AssetEntity } from './asset.entity';
 import { AuditEntity } from './audit.entity';
 import { ExifEntity } from './exif.entity';
@@ -27,6 +27,7 @@ export * from './album.entity';
 export * from './api-key.entity';
 export * from './asset-face.entity';
 export * from './asset-job-status.entity';
+export * from './asset-stack.entity';
 export * from './asset.entity';
 export * from './audit.entity';
 export * from './exif.entity';
@@ -51,6 +52,7 @@ export const databaseEntities = [
   AlbumEntity,
   APIKeyEntity,
   AssetEntity,
+  AssetStackEntity,
   AssetFaceEntity,
   AssetJobStatusEntity,
   AuditEntity,
