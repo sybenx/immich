@@ -8,6 +8,7 @@ import { AssetEntity } from './asset.entity';
 import { AuditEntity } from './audit.entity';
 import { ExifEntity } from './exif.entity';
 import { GeodataAdmin1Entity } from './geodata-admin1.entity';
+import { GeodataAdmin2Entity } from './geodata-admin2.entity';
 import { GeodataPlacesEntity } from './geodata-places.entity';
 import { LibraryEntity } from './library.entity';
 import { MoveEntity } from './move.entity';
