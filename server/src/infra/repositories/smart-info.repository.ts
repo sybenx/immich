@@ -1,4 +1,13 @@
-import { Embedding, EmbeddingSearch, FaceEmbeddingSearch, FaceSearchResult, ISmartInfoRepository } from '@app/domain';
+import {
+  Embedding,
+  EmbeddingSearch,
+  FaceEmbeddingSearch,
+  FaceSearchResult,
+  ISmartInfoRepository,
+  Paginated,
+  PaginationOptions,
+  PaginationResult,
+} from '@app/domain';
 import { getCLIPModelInfo } from '@app/domain/smart-info/smart-info.constant';
 import { AssetEntity, AssetFaceEntity, SmartInfoEntity, SmartSearchEntity } from '@app/infra/entities';
 import { ImmichLogger } from '@app/infra/logger';
@@ -6,7 +15,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DummyValue, GenerateSql } from '../infra.util';
-import { asVector, isValidInteger } from '../infra.utils';
+import { asVector, isValidInteger, paginatedBuilder } from '../infra.utils';
 
 @Injectable()
 export class SmartInfoRepository implements ISmartInfoRepository {
@@ -43,38 +52,24 @@ export class SmartInfoRepository implements ISmartInfoRepository {
   @GenerateSql({
     params: [{ userIds: [DummyValue.UUID], embedding: Array.from({ length: 512 }, Math.random), numResults: 100 }],
   })
-  async searchCLIP({ userIds, embedding, numResults, withArchived }: EmbeddingSearch): Promise<AssetEntity[]> {
-    let results: AssetEntity[] = [];
-    await this.assetRepository.manager.transaction(async (manager) => {
-
-      let query = manager
-        .createQueryBuilder(AssetEntity, 'a')
-        .innerJoin('a.smartSearch', 's')
-        .leftJoinAndSelect('a.exifInfo', 'e')
-        .where('a.ownerId IN (:...userIds )')
-
-        .orderBy('s.embedding <=> :embedding')
-        .setParameters({ userIds, embedding: asVector(embedding) });
+  async searchCLIP({ userIds, embedding }: EmbeddingSearch, pagination: PaginationOptions): Paginated<AssetEntity> {
+    const query = this.assetRepository
+      .createQueryBuilder('a')
+      .innerJoin('a.smartSearch', 's')
+      .where('a.ownerId IN (:...userIds )')
+      .andWhere('a.isVisible = true')
+      .andWhere('a.isArchived = false')
+      .andWhere('a.fileCreatedAt < NOW()')
+      .leftJoinAndSelect('a.exifInfo', 'e')
+      // .orderBy('s.embedding <=> :embedding')
+      .setParameters({ userIds, embedding: asVector(embedding) });
 
       if (!withArchived) {
         query.andWhere('a.isArchived = false');
       }
       query.andWhere('a.isVisible = true').andWhere('a.fileCreatedAt < NOW()');
 
-      let runtimeConfig = 'SET LOCAL vectors.enable_prefilter=on; SET LOCAL vectors.search_mode=basic;';
-      if (numResults) {
-        if (!isValidInteger(numResults, { min: 1 })) {
-          throw new Error(`Invalid value for 'numResults': ${numResults}`);
-        }
-        query = query.limit(numResults);
-        runtimeConfig += ` SET LOCAL vectors.hnsw_ef_search = ${numResults}`;
-      }
-
-      await manager.query(runtimeConfig);
-      results = await query.getMany();
-    });
-
-    return results;
+    return paginatedBuilder<AssetEntity>(query, pagination);;
   }
 
   @GenerateSql({
@@ -120,7 +115,7 @@ export class SmartInfoRepository implements ISmartInfoRepository {
       }
 
       this.faceColumns.forEach((col) => cte.addSelect(`faces.${col}`, col));
-      
+
       await manager.query(runtimeConfig);
       results = await manager
         .createQueryBuilder()
