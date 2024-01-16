@@ -1,10 +1,23 @@
 <script lang="ts">
   import { slide } from 'svelte/transition';
+  import type { SystemConfigDto } from '@immich/sdk';
+  import { SearchParams } from '$lib/stores/search-params.store';
   export let title: string;
   export let subtitle = '';
-
+  export let key: keyof SystemConfigDto | Array<keyof SystemConfigDto> = [];
   export let isOpen = false;
-  const toggle = () => (isOpen = !isOpen);
+
+  const searchParams = new SearchParams<keyof SystemConfigDto>('isOpen');
+
+  searchParams.hasValue(key).subscribe((hasValue) => (isOpen = hasValue));
+
+  const toggle = () => {
+    if (isOpen) {
+      searchParams.removeValue(key);
+    } else {
+      searchParams.addValue(key);
+    }
+  };
 </script>
 
 <div class="border-b-[1px] border-gray-200 py-4 dark:border-gray-700">
