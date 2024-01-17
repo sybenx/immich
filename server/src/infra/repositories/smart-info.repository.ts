@@ -53,23 +53,30 @@ export class SmartInfoRepository implements ISmartInfoRepository {
     params: [{ userIds: [DummyValue.UUID], embedding: Array.from({ length: 512 }, Math.random), numResults: 100 }],
   })
   async searchCLIP({ userIds, embedding }: EmbeddingSearch, pagination: PaginationOptions): Paginated<AssetEntity> {
-    const query = this.assetRepository
-      .createQueryBuilder('a')
-      .innerJoin('a.smartSearch', 's')
-      .where('a.ownerId IN (:...userIds )')
-      .andWhere('a.isVisible = true')
-      .andWhere('a.isArchived = false')
-      .andWhere('a.fileCreatedAt < NOW()')
-      .leftJoinAndSelect('a.exifInfo', 'e')
-      .orderBy('s.embedding <=> :embedding')
-      .setParameters({ userIds, embedding: asVector(embedding) });
+    let results: PaginationResult<AssetEntity> = { items: [], hasNextPage: false };
 
-      if (!withArchived) {
+    await this.assetRepository.manager.transaction(async (manager) => {
+      manager.query(`SET LOCAL vectors.search_mode=vbase`);
+      const query = manager
+        .createQueryBuilder(AssetEntity, 'a')
+        .innerJoin('a.smartSearch', 's')
+        .where('a.ownerId IN (:...userIds )')
+        .andWhere('a.isVisible = true')
+        .andWhere('a.isArchived = false')
+        .andWhere('a.fileCreatedAt < NOW()')
+        .leftJoinAndSelect('a.exifInfo', 'e')
+        .orderBy('s.embedding <=> :embedding')
+        .setParameters({ userIds, embedding: asVector(embedding) });
+
+        if (!withArchived) {
         query.andWhere('a.isArchived = false');
       }
       query.andWhere('a.isVisible = true').andWhere('a.fileCreatedAt < NOW()');
 
-    return paginatedBuilder<AssetEntity>(query, pagination);;
+    results = await paginatedBuilder<AssetEntity>(query, pagination);
+    });
+
+    return results;
   }
 
   @GenerateSql({

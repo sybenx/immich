@@ -4,10 +4,7 @@ import type { PageLoad } from './$types';
 
 export const load = (async (data) => {
   await authenticate();
-  // const url = new URL(data.url.href);
-
   const term = data.url.searchParams.get('q') || data.url.searchParams.get('query') || undefined;
-  const page = data.url.searchParams.get('page') || '0';
   let results: SearchResponseDto | null = null;
   if (term) {
     const res = await api.searchApi.search({}, { params: data.url.searchParams });
@@ -21,7 +18,6 @@ export const load = (async (data) => {
       assets,
       albums: res.data.albums
     }
-    // results = res.data;
   }
 
   return {
