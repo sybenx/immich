@@ -27,9 +27,9 @@ const config = {
     },
   },
   plugins: [sveltekit()],
-  // optimizeDeps: {
-  //   entries: ['src/**/*.{svelte,ts,html}'],
-  // },
+  optimizeDeps: {
+    entries: ['src/**/*.{svelte,ts,html}'],
+  },
 };
 
 /** @type {import('vitest').UserConfig} */
