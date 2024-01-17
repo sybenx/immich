@@ -8571,6 +8571,10 @@
             },
             "type": "array"
           },
+          "nextPage": {
+            "nullable": true,
+            "type": "string"
+          },
           "total": {
             "type": "integer"
           }
@@ -8579,7 +8583,8 @@
           "total",
           "count",
           "items",
-          "facets"
+          "facets",
+          "nextPage"
         ],
         "type": "object"
       },
