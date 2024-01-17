@@ -30,7 +30,6 @@
       q: searchValue,
       clip: clipSearch,
       take: '100',
-      page: '0'
     });
 
     showBigSearchBar = false;

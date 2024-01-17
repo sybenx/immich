@@ -47,7 +47,7 @@ export class Version implements IVersion {
     }
   }
 
-   // if type is specified, only considers changes of that type or greater
+  // if type is specified, only considers changes of that type or greater
   compare(version: Version, type?: VersionType): number {
     const types = type ? this.types.slice(0, type + 1) : this.types;
     for (const key of types) {
