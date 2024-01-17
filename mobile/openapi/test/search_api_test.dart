@@ -22,7 +22,7 @@ void main() {
       // TODO
     });
 
-    //Future<SearchResponseDto> search({ String q, String query, bool clip, String type, bool recent, bool motion, bool withArchived }) async
+    //Future<SearchResponseDto> search({ String q, String query, bool clip, String type, bool recent, bool motion, bool withArchived, num take, num page }) async
     test('test search', () async {
       // TODO
     });

@@ -76,7 +76,11 @@ class SearchApi {
   /// * [bool] motion:
   ///
   /// * [bool] withArchived:
-  Future<Response> searchWithHttpInfo({ String? q, String? query, bool? clip, String? type, bool? recent, bool? motion, bool? withArchived, }) async {
+  ///
+  /// * [num] take:
+  ///
+  /// * [num] page:
+  Future<Response> searchWithHttpInfo({ String? q, String? query, bool? clip, String? type, bool? recent, bool? motion, bool? withArchived, num? take, num? page, }) async {
     // ignore: prefer_const_declarations
     final path = r'/search';
 
@@ -108,6 +112,12 @@ class SearchApi {
     if (withArchived != null) {
       queryParams.addAll(_queryParams('', 'withArchived', withArchived));
     }
+    if (take != null) {
+      queryParams.addAll(_queryParams('', 'take', take));
+    }
+    if (page != null) {
+      queryParams.addAll(_queryParams('', 'page', page));
+    }
 
     const contentTypes = <String>[];
 
@@ -138,8 +148,12 @@ class SearchApi {
   /// * [bool] motion:
   ///
   /// * [bool] withArchived:
-  Future<SearchResponseDto?> search({ String? q, String? query, bool? clip, String? type, bool? recent, bool? motion, bool? withArchived, }) async {
-    final response = await searchWithHttpInfo( q: q, query: query, clip: clip, type: type, recent: recent, motion: motion, withArchived: withArchived, );
+  ///
+  /// * [num] take:
+  ///
+  /// * [num] page:
+  Future<SearchResponseDto?> search({ String? q, String? query, bool? clip, String? type, bool? recent, bool? motion, bool? withArchived, num? take, num? page, }) async {
+    final response = await searchWithHttpInfo( q: q, query: query, clip: clip, type: type, recent: recent, motion: motion, withArchived: withArchived, take: take, page: page, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

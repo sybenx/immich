@@ -4594,7 +4594,7 @@
             }
           },
           {
-            "name": "skip",
+            "name": "page",
             "required": false,
             "in": "query",
             "schema": {

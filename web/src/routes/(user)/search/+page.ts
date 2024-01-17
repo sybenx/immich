@@ -1,15 +1,27 @@
 import { authenticate } from '$lib/utils/auth';
-import { SearchResponseDto, api } from '@api';
+import { AssetResponseDto, SearchResponseDto, api } from '@api';
 import type { PageLoad } from './$types';
 
 export const load = (async (data) => {
   await authenticate();
-  const url = new URL(data.url.href);
-  const term = url.searchParams.get('q') || url.searchParams.get('query') || undefined;
+  // const url = new URL(data.url.href);
+
+  const term = data.url.searchParams.get('q') || data.url.searchParams.get('query') || undefined;
+  const page = data.url.searchParams.get('page') || '0';
   let results: SearchResponseDto | null = null;
   if (term) {
-    const { data } = await api.searchApi.search({}, { params: url.searchParams });
-    results = data;
+    const res = await api.searchApi.search({}, { params: data.url.searchParams });
+    const assetItems: Array<AssetResponseDto> = (data as any).results?.assets.items;
+    console.log('assetItems', assetItems);
+    const assets = {
+      ...res.data.assets,
+      items: assetItems ? assetItems.concat(res.data.assets.items) : res.data.assets.items
+    };
+    results = {
+      assets,
+      albums: res.data.albums
+    }
+    // results = res.data;
   }
 
   return {
