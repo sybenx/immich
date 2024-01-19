@@ -61,19 +61,21 @@ export class SearchService {
     if (!query) {
       throw new Error('Missing query');
     }
+
     const hasClip = machineLearning.enabled && machineLearning.clip.enabled;
     if (dto.clip && !hasClip) {
       throw new Error('CLIP is not enabled');
     }
+
     const strategy = dto.clip ? SearchStrategy.CLIP : SearchStrategy.TEXT;
     const userIds = await this.getUserIdsToSearch(auth);
     const withArchived = dto.withArchived || false;
-
-    let assets: AssetEntity[] = [];
     const page = dto.page ?? 0;
     const take = dto.take || 100;
     const skip = page * take;
+
     let nextPage: string | null = null;
+    let assets: AssetEntity[] = [];
     switch (strategy) {
       case SearchStrategy.CLIP:
         const embedding = await this.machineLearning.encodeText(
@@ -82,13 +84,15 @@ export class SearchService {
           machineLearning.clip,
         );
 
-        this.logger.log(`Take: ${take}, skip: ${skip}`);
-        const results = await this.smartInfoRepository.searchCLIP({ userIds, embedding }, { take, skip });
-        // this.logger.log(JSON.stringify(results, null, 2));
-        if (results.hasNextPage) {
+        this.logger.debug(`Take: ${take}, skip: ${skip}`);
+        const { hasNextPage, items } = await this.smartInfoRepository.searchCLIP(
+          { userIds, embedding, withArchived },
+          { take, skip },
+        );
+        if (hasNextPage) {
           nextPage = (page + 1).toString();
         }
-        assets = results.items;
+        assets = items;
         break;
       case SearchStrategy.TEXT:
         assets = await this.assetRepository.searchMetadata(query, userIds, { numResults: 250 });
