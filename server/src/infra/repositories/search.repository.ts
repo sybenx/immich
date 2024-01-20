@@ -1,25 +1,29 @@
 import {
+  AssetSearchBuilderOptions,
+  AssetSearchOptions,
   Embedding,
-  EmbeddingSearch,
   FaceEmbeddingSearch,
   FaceSearchResult,
-  ISmartInfoRepository,
+  ISearchRepository,
   Paginated,
-  PaginationOptions,
+  PaginationMode,
   PaginationResult,
+  SearchPaginationOptions,
+  SmartSearchOptions,
 } from '@app/domain';
 import { getCLIPModelInfo } from '@app/domain/smart-info/smart-info.constant';
 import { AssetEntity, AssetFaceEntity, SmartInfoEntity, SmartSearchEntity } from '@app/infra/entities';
 import { ImmichLogger } from '@app/infra/logger';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import _ from 'lodash';
 import { Repository } from 'typeorm';
 import { DummyValue, GenerateSql } from '../infra.util';
-import { asVector, isValidInteger, paginatedBuilder } from '../infra.utils';
+import { asVector, isValidInteger, paginatedBuilder, searchAssetBuilder } from '../infra.utils';
 
 @Injectable()
-export class SmartInfoRepository implements ISmartInfoRepository {
-  private logger = new ImmichLogger(SmartInfoRepository.name);
+export class SearchRepository implements ISearchRepository {
+  private logger = new ImmichLogger(SearchRepository.name);
   private faceColumns: string[];
 
   constructor(
@@ -49,32 +53,42 @@ export class SmartInfoRepository implements ISmartInfoRepository {
     }
   }
 
+  async searchAssets(pagination: SearchPaginationOptions, options: AssetSearchOptions): Paginated<AssetEntity> {
+    let builder = this.assetRepository.createQueryBuilder('asset');
+    builder = searchAssetBuilder(builder, options);
+
+    if (options.order) {
+      builder.orderBy('asset.fileCreatedAt', options.order.direction);
+    }
+
+    return paginatedBuilder<AssetEntity>(builder, {
+      mode: PaginationMode.SKIP_TAKE,
+      skip: pagination.page * pagination.size,
+      take: pagination.size,
+    });
+  }
+
   @GenerateSql({
     params: [{ userIds: [DummyValue.UUID], embedding: Array.from({ length: 512 }, Math.random), numResults: 100 }],
   })
-  async searchCLIP(
-    { userIds, embedding, withArchived }: EmbeddingSearch,
-    pagination: PaginationOptions,
-  ): Paginated<AssetEntity> {
+  async searchCLIP(pagination: SearchPaginationOptions, options: SmartSearchOptions): Paginated<AssetEntity> {
     let results: PaginationResult<AssetEntity> = { items: [], hasNextPage: false };
 
     await this.assetRepository.manager.transaction(async (manager) => {
-      manager.query(`SET LOCAL vectors.search_mode=vbase`);
-      const query = manager
-        .createQueryBuilder(AssetEntity, 'a')
+      await manager.query(`SET LOCAL vectors.search_mode=vbase`);
+      let builder = manager.createQueryBuilder(AssetEntity, 'asset');
+      builder = searchAssetBuilder(builder, options);
+      builder
         .innerJoin('a.smartSearch', 's')
-        .where('a.ownerId IN (:...userIds )')
-        .andWhere('a.isVisible = true')
-        .andWhere('a.fileCreatedAt < NOW()')
-        .leftJoinAndSelect('a.exifInfo', 'e')
+        .andWhere('a.ownerId IN (:...userIds )')
         .orderBy('s.embedding <=> :embedding')
-        .setParameters({ userIds, embedding: asVector(embedding) });
+        .setParameters({ userIds: options.userIds, embedding: asVector(options.embedding) });
 
-      if (!withArchived) {
-        query.andWhere('a.isArchived = false');
-      }
-
-      results = await paginatedBuilder<AssetEntity>(query, pagination);
+      return paginatedBuilder<AssetEntity>(builder, {
+        mode: PaginationMode.SKIP_TAKE,
+        skip: pagination.page * pagination.size,
+        take: pagination.size,
+      });
     });
 
     return results;

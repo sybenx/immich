@@ -18,6 +18,7 @@ import {
   ICryptoRepository,
   IJobRepository,
   IPartnerRepository,
+  ISearchRepository,
   IStorageRepository,
   ISystemConfigRepository,
   IUserRepository,
@@ -94,6 +95,7 @@ export class AssetService {
     @Inject(IUserRepository) private userRepository: IUserRepository,
     @Inject(ICommunicationRepository) private communicationRepository: ICommunicationRepository,
     @Inject(IPartnerRepository) private partnerRepository: IPartnerRepository,
+    @Inject(ISearchRepository) private searchRepository: ISearchRepository,
   ) {
     this.access = AccessCore.create(accessRepository);
     this.configCore = SystemConfigCore.create(configRepository);
@@ -108,17 +110,18 @@ export class AssetService {
     }
 
     const enumToOrder = { [AssetOrder.ASC]: 'ASC', [AssetOrder.DESC]: 'DESC' } as const;
-    const order = dto.order ? enumToOrder[dto.order] : undefined;
+    const order = dto.order ? { direction: enumToOrder[dto.order] } : undefined;
 
-    return this.assetRepository
-      .search({
-        ...dto,
-        order,
-        checksum,
-        ownerId: auth.user.id,
-      })
-      .then((assets) =>
-        assets.map((asset) =>
+    return this.searchRepository
+      .searchAssets(
+        { page: 0, size: 250 },
+        {
+          id: { checksum, ownerId: auth.user.id },
+          order,
+        },
+      )
+      .then(({ items }) =>
+        items.map((asset) =>
           mapAsset(asset, {
             stripMetadata: false,
             withStack: true,
@@ -379,7 +382,7 @@ export class AssetService {
       const userId = dto.userId;
       await this.access.requirePermission(auth, Permission.TIMELINE_DOWNLOAD, userId);
       return usePagination(PAGINATION_SIZE, (pagination) =>
-        this.assetRepository.getByUserId(pagination, userId, { isVisible: true }),
+        this.assetRepository.getByUserId(pagination, userId, { status: { isVisible: true } }),
       );
     }
 
@@ -450,7 +453,7 @@ export class AssetService {
       .minus(Duration.fromObject({ days: trashedDays }))
       .toJSDate();
     const assetPagination = usePagination(JOBS_ASSET_PAGINATION_SIZE, (pagination) =>
-      this.assetRepository.getAll(pagination, { trashedBefore }),
+      this.assetRepository.getAll(pagination, { date: { trashedBefore } }),
     );
 
     for await (const assets of assetPagination) {
@@ -527,7 +530,9 @@ export class AssetService {
 
   async handleTrashAction(auth: AuthDto, action: TrashAction): Promise<void> {
     const assetPagination = usePagination(JOBS_ASSET_PAGINATION_SIZE, (pagination) =>
-      this.assetRepository.getByUserId(pagination, auth.user.id, { trashedBefore: DateTime.now().toJSDate() }),
+      this.assetRepository.getByUserId(pagination, auth.user.id, {
+        date: { trashedBefore: DateTime.now().toJSDate() },
+      }),
     );
 
     if (action == TrashAction.RESTORE_ALL) {
