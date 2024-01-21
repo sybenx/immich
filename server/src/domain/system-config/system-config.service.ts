@@ -3,13 +3,17 @@ import { ImmichLogger } from '@app/infra/logger';
 import { Inject, Injectable } from '@nestjs/common';
 import { instanceToPlain } from 'class-transformer';
 import _ from 'lodash';
+import { QueueName } from '../job/job.constants';
 import {
   ClientEvent,
+  DatabaseLock,
   ICommunicationRepository,
-  ISmartInfoRepository,
+  IDatabaseRepository,
+  IJobRepository,
   ISystemConfigRepository,
   ServerEvent,
 } from '../repositories';
+import { getCLIPModelInfo } from '../smart-info/smart-info.constant';
 import { SystemConfigDto, mapConfig } from './dto/system-config.dto';
 import { SystemConfigTemplateStorageOptionDto } from './response-dto/system-config-template-storage-option.dto';
 import {
@@ -32,7 +36,8 @@ export class SystemConfigService {
   constructor(
     @Inject(ISystemConfigRepository) private repository: ISystemConfigRepository,
     @Inject(ICommunicationRepository) private communicationRepository: ICommunicationRepository,
-    @Inject(ISmartInfoRepository) private smartInfoRepository: ISmartInfoRepository,
+    @Inject(IJobRepository) private jobRepository: IJobRepository,
+    @Inject(IDatabaseRepository) private databaseRepository: IDatabaseRepository,
   ) {
     this.core = SystemConfigCore.create(repository);
     this.communicationRepository.on(ServerEvent.CONFIG_UPDATE, () => this.handleConfigUpdate());
@@ -65,9 +70,15 @@ export class SystemConfigService {
 
     this.communicationRepository.broadcast(ClientEvent.CONFIG_UPDATE, {});
     this.communicationRepository.sendServerEvent(ServerEvent.CONFIG_UPDATE);
+    const modelName = newConfig.machineLearning.clip.modelName;
 
-    if (oldConfig.machineLearning.clip.modelName !== newConfig.machineLearning.clip.modelName) {
-      await this.smartInfoRepository.init(newConfig.machineLearning.clip.modelName);
+    if (oldConfig.machineLearning.clip.modelName !== modelName) {
+      await this.databaseRepository.withLock(DatabaseLock.CLIPDimSize, async () => {
+        await this.jobRepository.pause(QueueName.SMART_SEARCH);
+        await this.jobRepository.waitForQueueCompletion(QueueName.SMART_SEARCH);
+        await this.updateCLIPDimSize(modelName);
+        await this.jobRepository.resume(QueueName.SMART_SEARCH);
+      });
     }
     return mapConfig(newConfig);
   }
@@ -134,5 +145,24 @@ export class SystemConfigService {
     if (!_.isEqual(instanceToPlain(newConfig.logging), oldConfig.logging) && this.getEnvLogLevel()) {
       throw new Error('Logging cannot be changed while the environment variable LOG_LEVEL is set.');
     }
+  }
+
+  private async updateCLIPDimSize(modelName: string): Promise<void> {
+    const { dimSize } = getCLIPModelInfo(modelName);
+    const curDimSize = await this.databaseRepository.getCLIPDimSize();
+    this.logger.log(`Dimension size of model ${modelName} is ${dimSize}, but database expects ${curDimSize}.`);
+
+    await this.jobRepository.pause(QueueName.SMART_SEARCH);
+    await this.jobRepository.waitForQueueCompletion(QueueName.SMART_SEARCH);
+
+    await this.databaseRepository.withLock(DatabaseLock.CLIPDimSize, async () => {
+      this.logger.verbose(`Current database CLIP dimension size is ${curDimSize}`);
+
+      if (dimSize != curDimSize) {
+        await this.databaseRepository.updateCLIPDimSize(dimSize);
+      }
+    });
+
+    await this.jobRepository.resume(QueueName.SMART_SEARCH);
   }
 }

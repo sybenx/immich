@@ -5,26 +5,14 @@ export class UsePgVectors1700713871511 implements MigrationInterface {
   name = 'UsePgVectors1700713871511';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS vectors`);
-    const faceDimQuery = await queryRunner.query(`
-        SELECT CARDINALITY(embedding::real[]) as dimsize
-        FROM asset_faces
-        LIMIT 1`);
-    const faceDimSize = faceDimQuery?.[0]?.['dimsize'] ?? 512;
-
     const clipModelNameQuery = await queryRunner.query(`SELECT value FROM system_config WHERE key = 'machineLearning.clip.modelName'`);
     const clipModelName: string = clipModelNameQuery?.[0]?.['value'] ?? 'ViT-B-32__openai';
     const clipDimSize = getCLIPModelInfo(clipModelName.replace(/"/g, '')).dimSize;
 
     await queryRunner.query(`
-        ALTER TABLE asset_faces 
-        ALTER COLUMN embedding SET NOT NULL,
-        ALTER COLUMN embedding TYPE vector(${faceDimSize})`);
-
-    await queryRunner.query(`
         CREATE TABLE smart_search (
         "assetId"  uuid PRIMARY KEY NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-        embedding  vector(${clipDimSize}) NOT NULL )`);
+        embedding  real[] NOT NULL )`);
 
     await queryRunner.query(`
         INSERT INTO smart_search("assetId", embedding)

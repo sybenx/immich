@@ -13,6 +13,7 @@ import {
   WithoutProperty,
 } from '../repositories';
 import { SystemConfigCore } from '../system-config';
+import { getCLIPModelInfo } from './smart-info.constant';
 
 @Injectable()
 export class SmartInfoService {
@@ -28,20 +29,6 @@ export class SmartInfoService {
     @Inject(ISystemConfigRepository) configRepository: ISystemConfigRepository,
   ) {
     this.configCore = SystemConfigCore.create(configRepository);
-  }
-
-  async init() {
-    await this.jobRepository.pause(QueueName.SMART_SEARCH);
-
-    await this.jobRepository.waitForQueueCompletion(QueueName.SMART_SEARCH);
-
-    const { machineLearning } = await this.configCore.getConfig();
-
-    await this.databaseRepository.withLock(DatabaseLock.CLIPDimSize, () =>
-      this.repository.init(machineLearning.clip.modelName),
-    );
-
-    await this.jobRepository.resume(QueueName.SMART_SEARCH);
   }
 
   async handleQueueEncodeClip({ force }: IBaseJob) {
