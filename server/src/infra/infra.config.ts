@@ -1,4 +1,4 @@
-import { QueueName } from '@app/domain/job/job.constants';
+import { QueueName } from '@app/domain';
 import { RegisterQueueOptions } from '@nestjs/bullmq';
 import { QueueOptions } from 'bullmq';
 import { RedisOptions } from 'ioredis';

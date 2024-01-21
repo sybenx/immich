@@ -16,8 +16,10 @@ import {
   SearchExploreItem,
   TimeBucketItem,
   TimeBucketOptions,
+  TimeBucketSize,
+  WithProperty,
+  WithoutProperty,
 } from '@app/domain';
-import { TimeBucketSize, WithProperty, WithoutProperty } from '@app/domain/repositories/asset.repository';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import _ from 'lodash';
