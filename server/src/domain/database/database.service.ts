@@ -11,6 +11,8 @@ export class DatabaseService {
   minPostgresVersion = 14;
   minVectorsVersion = new Version(0, 2, 0);
   maxVectorsVersion: Version | VersionType = VersionType.MINOR;
+  minVectorVersion = new Version(0, 5, 0);
+  maxVectorVersion: Version | VersionType = VersionType.MAJOR;
   extName = vectorExtension === DatabaseExtension.VECTOR ? 'pgvector' : 'pgvecto.rs';
 
   constructor(@Inject(IDatabaseRepository) private databaseRepository: IDatabaseRepository) {}
@@ -31,29 +33,29 @@ export class DatabaseService {
     // if (version.isEqual(new Version(0, 0, 0))) {
     //   throw new Error(
     //     `The pgvecto.rs extension version is ${version}, which means it is a nightly release.` +
-    //       `Please run 'DROP EXTENSION IF EXISTS vectors' and switch to a release version${suggestion}.`,
+    //       `Please run 'DROP EXTENSION IF EXISTS vectors' and switch to a release version.`,
     //   );
     // }
 
-    if (this.maxVectorsVersion instanceof Version) {
-      if (version.isNewerThan(this.maxVectorsVersion)) {
+    const minVersion = vectorExtension === DatabaseExtension.VECTOR ? this.minVectorVersion : this.minVectorsVersion;
+    const maxVersion = vectorExtension === DatabaseExtension.VECTOR ? this.maxVectorVersion : this.maxVectorsVersion;
+
+    if (maxVersion instanceof Version) {
+      if (version.isNewerThan(maxVersion)) {
         this.logger.fatal(`
-        The pgvecto.rs extension version is ${version} instead of ${this.maxVectorsVersion}.
-        Please run 'DROP EXTENSION IF EXISTS vectors' and switch to ${this.maxVectorsVersion}.`);
+        The ${this.extName} extension version is ${version} instead of ${maxVersion}.
+        Please run 'DROP EXTENSION IF EXISTS ${vectorExtension}' and switch to ${maxVersion}.`);
         throw new Error();
       }
-    } else if (
-      version.isOlderThan(this.minVectorsVersion) ||
-      version.isNewerThan(this.minVectorsVersion, this.maxVectorsVersion)
-    ) {
+    } else if (version.isOlderThan(minVersion) || version.isNewerThan(minVersion, maxVersion)) {
       const releases =
-        this.maxVectorsVersion !== VersionType.PATCH
-          ? `${this.minVectorsVersion} and later ${VersionType[this.maxVectorsVersion + 1].toLowerCase()} releases`
-          : this.minVectorsVersion;
+        maxVersion !== VersionType.PATCH
+          ? `${minVersion} and later ${VersionType[maxVersion + 1].toLowerCase()} releases`
+          : minVersion.toString();
 
       this.logger.fatal(`
-        The pgvecto.rs extension version is ${version}, but Immich only supports ${releases}.
-        Please run 'DROP EXTENSION IF EXISTS vectors' and switch to a compatible version.`);
+        The ${this.extName} extension version is ${version}, but Immich only supports ${releases}.
+        Please run 'DROP EXTENSION IF EXISTS ${vectorExtension}' and switch to a compatible version.`);
       throw new Error();
     }
   }
@@ -65,8 +67,6 @@ export class DatabaseService {
         If you have not updated your Postgres instance to a docker image that supports ${this.extName}, please do so.
         If the Postgres instance already has ${this.extName} installed, Immich may not have the necessary permissions to activate it.
         In this case, please run 'CREATE EXTENSION IF NOT EXISTS ${vectorExtension}' manually as a superuser.
-
-        See the v1.91.0 release notes for more info: https://github.com/immich-app/immich/releases/tag/v1.91.0'
       `);
       throw err;
     });
