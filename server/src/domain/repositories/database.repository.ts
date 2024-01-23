@@ -13,7 +13,7 @@ export enum DatabaseLock {
   CLIPDimSize = 512,
 }
 
-export const extName = {
+export const extName: Record<DatabaseExtension, string> = {
   cube: 'cube',
   earthdistance: 'earthdistance',
   vector: 'pgvector',
