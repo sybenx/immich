@@ -10,9 +10,9 @@ export class DatabaseService {
   private vectorExt: DatabaseExtension;
   minPostgresVersion = 14;
   minVectorsVersion = new Version(0, 0, 0);
-  pinnedVectorsVersion = VersionType.MINOR;
+  vectorsVersionPin = VersionType.MINOR;
   minVectorVersion = new Version(0, 5, 0);
-  pinnedVectorVersion = VersionType.MAJOR;
+  vectorVersionPin = VersionType.MAJOR;
 
   constructor(@Inject(IDatabaseRepository) private databaseRepository: IDatabaseRepository) {
     this.vectorExt = this.databaseRepository.getPreferredVectorExtension();
@@ -63,9 +63,15 @@ export class DatabaseService {
       throw new Error(`Unexpected: The ${extName[this.vectorExt]} extension is not installed.`);
     }
 
-    if (availableVersion?.isNewerThan(version)) {
+    if (availableVersion == null) {
+      return;
+    }
+
+    const maxVersion = this.vectorExt === DatabaseExtension.VECTOR ? this.vectorVersionPin : this.vectorsVersionPin;
+    const isNewer = availableVersion.isNewerThan(version);
+    if (isNewer != null && isNewer < maxVersion) {
       try {
-        this.databaseRepository.updateExtension(this.vectorExt, availableVersion);
+        await this.databaseRepository.updateExtension(this.vectorExt, availableVersion);
       } catch (err) {
         this.logger.warn(`
           The ${extName[this.vectorExt]} extension version is ${version}, but ${availableVersion} is available.
@@ -90,8 +96,7 @@ export class DatabaseService {
     }
 
     const minVersion = this.vectorExt === DatabaseExtension.VECTOR ? this.minVectorVersion : this.minVectorsVersion;
-    const maxVersion =
-      this.vectorExt === DatabaseExtension.VECTOR ? this.pinnedVectorVersion : this.pinnedVectorsVersion;
+    const maxVersion = this.vectorExt === DatabaseExtension.VECTOR ? this.vectorVersionPin : this.vectorsVersionPin;
 
     if (version.isOlderThan(minVersion) || (version.isNewerThan(minVersion) ?? 0) >= maxVersion) {
       const releases =

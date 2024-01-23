@@ -21,19 +21,22 @@ describe(DatabaseService.name, () => {
     [{ vectorExt: DatabaseExtension.VECTOR, extName: 'pgvector', minVersion: new Version(0, 5, 0) }],
   ])('init', ({ vectorExt, extName, minVersion }) => {
     let fatalLog: jest.SpyInstance;
+    let warnLog: jest.SpyInstance;
 
     beforeEach(async () => {
       fatalLog = jest.spyOn(ImmichLogger.prototype, 'fatal');
+      warnLog = jest.spyOn(ImmichLogger.prototype, 'warn');
       databaseMock.getPreferredVectorExtension.mockReturnValue(vectorExt);
 
       sut = new DatabaseService(databaseMock);
 
       sut.minVectorsVersion = minVersion;
-      sut.pinnedVectorsVersion = VersionType.PATCH;
+      sut.vectorsVersionPin = VersionType.MINOR;
     });
 
     afterEach(() => {
       fatalLog.mockRestore();
+      warnLog.mockRestore();
     });
 
     it(`should resolve successfully if minimum supported PostgreSQL and ${extName} version are installed`, async () => {
@@ -101,10 +104,11 @@ describe(DatabaseService.name, () => {
         version[field] = minVersion[field] + 1;
         databaseMock.getExtensionVersion.mockResolvedValue(version);
         if (vectorExt === DatabaseExtension.VECTOR) {
-          sut.minVectorsVersion = minVersion;
-          sut.pinnedVectorVersion = type;
-        } else {
           sut.minVectorVersion = minVersion;
+          sut.vectorVersionPin = type;
+        } else {
+          sut.minVectorsVersion = minVersion;
+          sut.vectorsVersionPin = type;
         }
 
         await expect(sut.init()).rejects.toThrow();
@@ -134,6 +138,46 @@ describe(DatabaseService.name, () => {
       expect(fatalLog).toHaveBeenCalledTimes(1);
       expect(databaseMock.createExtension).toHaveBeenCalledTimes(1);
       expect(databaseMock.runMigrations).not.toHaveBeenCalled();
+    });
+
+    it(`should update ${extName} if a newer version is available`, async () => {
+      const version = new Version(minVersion.major, minVersion.minor, minVersion.patch + 1);
+      databaseMock.getExtensionVersion.mockResolvedValue(minVersion);
+      databaseMock.getAvailableExtensionVersion.mockResolvedValue(version);
+
+      await expect(sut.init()).resolves.toBeUndefined();
+
+      expect(databaseMock.updateExtension).toHaveBeenCalledWith(vectorExt, version);
+      expect(databaseMock.updateExtension).toHaveBeenCalledTimes(1);
+      expect(databaseMock.runMigrations).toHaveBeenCalledTimes(1);
+      expect(fatalLog).not.toHaveBeenCalled();
+    });
+
+    it(`should not update ${extName} if a newer version is higher than the maximum`, async () => {
+      const version = new Version(minVersion.major + 1, minVersion.minor, minVersion.patch);
+      databaseMock.getExtensionVersion.mockResolvedValue(minVersion);
+      databaseMock.getAvailableExtensionVersion.mockResolvedValue(version);
+
+      await expect(sut.init()).resolves.toBeUndefined();
+
+      expect(databaseMock.updateExtension).not.toHaveBeenCalled();
+      expect(databaseMock.runMigrations).toHaveBeenCalledTimes(1);
+      expect(fatalLog).not.toHaveBeenCalled();
+    });
+
+    it(`should warn if attempted to update ${extName} and failed`, async () => {
+      const version = new Version(minVersion.major, minVersion.minor, minVersion.patch + 1);
+      databaseMock.getExtensionVersion.mockResolvedValue(minVersion);
+      databaseMock.getAvailableExtensionVersion.mockResolvedValue(version);
+      databaseMock.updateExtension.mockRejectedValue(new Error('Failed to update extension'));
+
+      await expect(sut.init()).resolves.toBeUndefined();
+
+      expect(warnLog).toHaveBeenCalledTimes(1);
+      expect(warnLog.mock.calls[0][0]).toContain(extName);
+      expect(databaseMock.updateExtension).toHaveBeenCalledWith(vectorExt, version);
+      expect(databaseMock.runMigrations).toHaveBeenCalledTimes(1);
+      expect(fatalLog).not.toHaveBeenCalled();
     });
   });
 });
